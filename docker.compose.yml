@@ -1,0 +1,84 @@
+version: '3.9'
+services:
+  zookeeper:
+    user: "1000:1000"
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    restart: always
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 2181:2181
+    volumes:
+      - $ZOOKEEPER_SECRETS_DIR:/etc/zookeeper/secrets
+      - $ZOOKEEPER_DATA_DIR:/var/lib/zookeeper/data
+      - $ZOOKEEPER_LOG_DIR:/var/lib/zookeeper/log
+  kafka:
+    user: "1000:1000"
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka
+    restart: always
+    depends_on:
+      - zookeeper
+    ports:
+      - 9092:9092
+    environment:
+      KAFKA_BROKER_ID: 0
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    volumes:
+      - $KAFKA_DATA_DIR:/var/lib/kafka/data
+      - $KAFKA_SECRETS_DIR:/etc/kafka/secrets
+  mariadb:
+    image: mariadb:latest
+    container_name: mariadb
+    restart: always
+    ports:
+      - 33006:3306
+    environment:
+      MARIADB_USER: dev
+      MARIADB_PASSWORD: Testing@65432
+      MARIADB_ROOT_PASSWORD: Testing@65432
+      MARIADB_DATABASE: users
+    volumes:
+      - $MARIADB_DATA_DIR:/var/lib/mysql # Makes it easy to configure the data location:
+  postgresql:
+    image: postgres:alpine
+    container_name: postgresql
+    restart: always
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: Testing@65432
+      POSTGRES_USER: dev
+      POSTGRES_DB: agency_broker
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+      PGDATA: $POSTGRES_DATA_DIR
+    volumes:
+      - $POSTGRES_DATA_DIR:/var/lib/postgresql/data
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    restart: always
+    ports:
+      - 27017:27017
+    command:
+      - --auth
+    environment:
+      MONGO_INITDB_DATABASE: sig
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: Testing@65432
+    volumes:
+      - $MONGODB_DATA_DIR:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+networks:
+  # Use a pre-existing network
+  # RUN `docker network create sandbox` before `docker-compose up -d`
+  default:
+    external: true
+    name: sandbox
